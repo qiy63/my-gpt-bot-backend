@@ -18,36 +18,74 @@ const pinecone = new Pinecone({
 
 const index = pinecone.Index(process.env.INDEX_NAME);
 
-// func embedding
-async function embedText(text, id) {
-    
-    const embedding = await openai.embeddings.create({
+// split long text to chunks
+function chunkText(text, size=500){
 
-        model: "text-embedding-3-small",
-        input: text
+    const chunks = [];
 
-    });
+    for (let i = 0; i < text.length; i += size){
 
-    await index.upsert([
+        chunks.push(text.slice(i, i + size));
 
-        {
+    }
 
-            id: id,
-            values: embedding.data[0].embedding,
-            metadata: {text}
-
-        }
-
-    ]);
-
-    console.log("Uploaded: ", id);
+    return chunks;
 
 }
 
+// upload files in documents
 async function uploadDocument() {
     
-    const text = fs.readFileSync("law.txt", "utf8");
-    await embedText(text, "malaysia-realestate-law");
+    const folder = "./documents";
+    const files = fs.readdirSync(folder);
+
+    console.log(`Found ${files.length} documents.`);
+
+    for (const file of files){
+
+        const filePath = path.join(folder, file);
+        const text = fs.readFileSync(filePath, "utf8");
+
+        const chunks = chunkText(text);
+
+        console.log(`Uploading ${file} with ${chunks.length} chunks...`);
+
+        // upload chunks as vector
+        for (let i = 0; i < chunks.length; i++){
+
+            const chunk = chunks[i];
+
+            const embedding = await openai.embeddings.create({
+
+                model: "text-embedding-3-small",
+                input: chunk
+
+            });
+
+            await index.upsert([
+
+                {
+
+                    id: `${file}_chunk_${i}`,
+                    values: embedding.data[0].embedding,
+                    metadata: {
+
+                        text: chunk,
+                        source: file
+
+                    }
+
+                }
+
+            ]);
+
+        }
+
+        console.log(`${file} uploaded successfully.`);
+
+    }
+
+    console.log("\nAll documents uploaded.");
 
 }
 

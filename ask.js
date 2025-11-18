@@ -63,4 +63,4 @@ async function ask(question) {
 
 }
 
-ask("When can a landlord legally raise rent in Malaysia?");
+ask("What is the rule for eviction notices in Malaysia?");
