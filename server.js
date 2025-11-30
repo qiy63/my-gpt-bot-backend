@@ -3,6 +3,7 @@ import cors from "cors";
 import {ask} from "./ask.js";
 import registerRoute from "./auth/register.js";
 import loginRoute from "./auth/login.js";
+import verifyToken from "./auth/verifyToken.js";
 
 const app = express();
 app.use(cors());
@@ -12,7 +13,7 @@ app.use("/auth", registerRoute);
 app.use("/auth", loginRoute);
 
 // api endpoint for answer
-app.post("/ask", async (req, res) => {
+app.post("/ask", verifyToken, async (req, res) => {
 
     try {
 
