@@ -5,7 +5,8 @@ export const db = mysql.createConnection({
     host: "localhost",
     user: "root",
     password: "",
-    database: "mygptbot_auth"
+    database: "mygptbot_auth",
+    multipleStatements: true
 
 });
 
