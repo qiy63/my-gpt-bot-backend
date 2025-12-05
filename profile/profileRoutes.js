@@ -15,7 +15,7 @@ if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, {recursive: true});
 
 const storage = multer.diskStorage({
 
-    destination: (req, file, cb) => cb(null, uploadDir),
+    destination: "profile/upload",
     filename: (req, file, cb) => {
 
         const ext = path.extname(file.originalname);
@@ -135,7 +135,7 @@ router.post("/profile/upload", verifyToken, upload.single("picture"), (req, res)
     if (!req.file) return res.status(400).json({error: "No file uploaded"});
 
     // save file path in db
-    const filePath = `/profile/upload/${req.file.filename}`;
+    const filePath = req.file.filename;
 
     const sql = `
     
@@ -148,7 +148,7 @@ router.post("/profile/upload", verifyToken, upload.single("picture"), (req, res)
     db.query(sql, [req.user.id, filePath], (err) => {
 
         if (err) console.error("upload db update err: ", err);
-        res.json({filePath});
+        res.json({fileName: req.file.filename});
 
     });
 
