@@ -4,7 +4,6 @@ import verifyToken from "../auth/verifyToken.js";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
-import { error } from "console";
 
 const router = express.Router();
 
@@ -15,7 +14,7 @@ if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, {recursive: true});
 
 const storage = multer.diskStorage({
 
-    destination: "profile/upload",
+    destination: (req, file, cb) => cb(null, uploadDir),
     filename: (req, file, cb) => {
 
         const ext = path.extname(file.originalname);
@@ -46,6 +45,13 @@ router.get("/profile", verifyToken, (req, res) => {
 
         const profile = results[0] || null;
 
+        if (profile?.profile_picture){
+
+            profile.profile_picture_url = 
+                `http://localhost:3000/profile/upload/${profile.profile_picture}`;
+
+        }
+
         res.json({profile});
 
     });
@@ -53,7 +59,7 @@ router.get("/profile", verifyToken, (req, res) => {
 });
 
 // PUT update prof
-router.put("/profile", verifyToken, (req, res) => {
+router.put("/profile", verifyToken, upload.single("picture"), (req, res) => {
 
     const userId = req.user.id;
     const {
@@ -65,29 +71,34 @@ router.put("/profile", verifyToken, (req, res) => {
         address,
         occupation,
         national_id,
-        profile_picture
 
     } = req.body;
 
+    const newProfilePic = req.file ? req.file.filename : null;
+
     // if profile exist
-    const checkSql = "SELECT id FROM user_profiles WHERE user_id = ?";
+    const checkSql = "SELECT profile_picture FROM user_profiles WHERE user_id = ?";
     
     db.query(checkSql, [userId], (err, rows) => {
 
         if (err) return res.status(500).json({ error: "DB Error "});
 
+        const existingPicture = rows[0]?.profile_picture || null;
+
+        const finalPicture = newProfilePic || existingPicture;
+
         if (rows.length > 0){
 
             // update
             const updateSql = `
-            
                 UPDATE user_profiles SET
-                    full_name = ?, phone = ?, gender = ?, birthdate = ?, address = ?, occupation = ?, national_id = ?, profile_picture = ?
+                    full_name = ?, phone = ?, gender = ?, birthdate = ?, 
+                    address = ?, occupation = ?, national_id = ?, 
+                    profile_picture = ?
                 WHERE user_id = ?
-
             `;
 
-            db.query(updateSql, [full_name, phone, gender, birthdate, address, occupation, national_id, profile_picture, userId], (err2) => {
+            db.query(updateSql, [full_name, phone, gender, birthdate, address, occupation, national_id, finalPicture,, userId], (err2) => {
 
                 if (err2) {
 
@@ -95,7 +106,12 @@ router.put("/profile", verifyToken, (req, res) => {
                     return res.status(500).json({ error: "DB Error" });
 
                 }
-                res.json({ message: "Profile Updated" });
+                res.json({
+                        message: "Profile Updated",
+                        profile_picture_url: finalPicture
+                            ? `http://localhost:3000/profile/upload/${finalPicture}`
+                            : null
+                    });
 
             });
 
@@ -103,14 +119,12 @@ router.put("/profile", verifyToken, (req, res) => {
 
             //insert
             const insertSql = `
-            
-                INSERT INTO user_profiles
+                INSERT INTO user_profiles 
                     (user_id, full_name, phone, gender, birthdate, address, occupation, national_id, profile_picture)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-
             `;
 
-            db.query(insertSql, [userId, full_name, phone, gender, birthdate, address, occupation, national_id, profile_picture], (err3) => {
+            db.query(insertSql, [userId, full_name, phone, gender, birthdate, address, occupation, national_id, finalPicture], (err3) => {
 
                 if (err3) {
 
@@ -119,7 +133,12 @@ router.put("/profile", verifyToken, (req, res) => {
 
                 }
 
-                res.json({ message: "Profile Created"});
+                res.json({
+                        message: "Profile Created",
+                        profile_picture_url: finalPicture
+                            ? `http://localhost:3000/profile/upload/${finalPicture}`
+                            : null
+                    });
                 
             });
 
@@ -129,29 +148,29 @@ router.put("/profile", verifyToken, (req, res) => {
 
 });
 
-// POST upload prof pic
-router.post("/profile/upload", verifyToken, upload.single("picture"), (req, res) => {
+// // POST upload prof pic
+// router.post("/profile/upload", verifyToken, upload.single("picture"), (req, res) => {
 
-    if (!req.file) return res.status(400).json({error: "No file uploaded"});
+//     if (!req.file) return res.status(400).json({error: "No file uploaded"});
 
-    // save file path in db
-    const filePath = req.file.filename;
+//     // save file path in db
+//     const filePath = req.file.filename;
 
-    const sql = `
+//     const sql = `
     
-        INSERT INTO user_profiles (user_id, profile_picture)
-            VALUES (?, ?)
-        ON DUPLICATE KEY UPDATE profile_picture = VALUES(profile_picture)
+//         INSERT INTO user_profiles (user_id, profile_picture)
+//             VALUES (?, ?)
+//         ON DUPLICATE KEY UPDATE profile_picture = VALUES(profile_picture)
 
-    `;
+//     `;
 
-    db.query(sql, [req.user.id, filePath], (err) => {
+//     db.query(sql, [req.user.id, filePath], (err) => {
 
-        if (err) console.error("upload db update err: ", err);
-        res.json({fileName: req.file.filename});
+//         if (err) console.error("upload db update err: ", err);
+//         res.json({fileName: req.file.filename});
 
-    });
+//     });
 
-});
+// });
 
 export default router;

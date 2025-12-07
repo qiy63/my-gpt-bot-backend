@@ -14,7 +14,7 @@ app.use(express.json());
 app.use("/auth", registerRoute);
 app.use("/auth", loginRoute);
 
-app.use("/upload", express.static(path.join(process.cwd(), "profile", "upload")));
+app.use("/profile/upload", express.static(path.join(process.cwd(), "profile", "upload")));
 app.use("/api", profileRoutes);
 
 // api endpoint for answer
