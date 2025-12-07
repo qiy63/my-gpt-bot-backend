@@ -14,6 +14,7 @@ export async function ask(question) {
         model: "text-embedding-3-small",
         input: question
 
+        
     });
 
     // 2. query pinecone
