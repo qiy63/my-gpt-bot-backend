@@ -45,8 +45,8 @@ app.post("/ask", verifyToken, async (req, res) => {
 });
 
 // start server
-app.listen(3000, () => {
+app.listen(4000, () => {
 
-    console.log("Backend running at localhost:3000");
+    console.log("Backend running at localhost:4000");
 
 });

@@ -48,7 +48,7 @@ router.get("/profile", verifyToken, (req, res) => {
         if (profile?.profile_picture){
 
             profile.profile_picture_url = 
-                `http://localhost:3000/profile/upload/${profile.profile_picture}`;
+                `http://localhost:4000/profile/upload/${profile.profile_picture}`;
 
         }
 
@@ -109,7 +109,7 @@ router.put("/profile", verifyToken, upload.single("picture"), (req, res) => {
                 res.json({
                         message: "Profile Updated",
                         profile_picture_url: finalPicture
-                            ? `http://localhost:3000/profile/upload/${finalPicture}`
+                            ? `http://localhost:4000/profile/upload/${finalPicture}`
                             : null
                     });
 
@@ -136,7 +136,7 @@ router.put("/profile", verifyToken, upload.single("picture"), (req, res) => {
                 res.json({
                         message: "Profile Created",
                         profile_picture_url: finalPicture
-                            ? `http://localhost:3000/profile/upload/${finalPicture}`
+                            ? `http://localhost:4000/profile/upload/${finalPicture}`
                             : null
                     });
                 
