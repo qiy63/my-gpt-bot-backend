@@ -98,7 +98,7 @@ router.put("/profile", verifyToken, upload.single("picture"), (req, res) => {
                 WHERE user_id = ?
             `;
 
-            db.query(updateSql, [full_name, phone, gender, birthdate, address, occupation, national_id, finalPicture,, userId], (err2) => {
+            db.query(updateSql, [full_name, phone, gender, birthdate, address, occupation, national_id, finalPicture, userId], (err2) => {
 
                 if (err2) {
 
