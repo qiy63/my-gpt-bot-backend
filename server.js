@@ -6,6 +6,7 @@ import loginRoute from "./auth/login.js";
 import verifyToken from "./auth/verifyToken.js";
 import profileRoutes from "./profile/profileRoutes.js";
 import feedbackRoutes from "./feedback/feedbackRoutes.js";
+import documentRoutes from "./legal_docs/documentRoutes.js";
 import path from "path";
 
 const app = express();
@@ -20,6 +21,9 @@ app.use("/api", profileRoutes);
 
 app.use("/feedback/upload", express.static(path.join(process.cwd(), "feedback", "upload")));
 app.use("/feedback", feedbackRoutes);
+
+app.use("/legal_docs/upload", express.static(path.join(process.cwd(), "legal_docs", "upload")));
+app.use("/documents", documentRoutes);
 
 // api endpoint for answer
 app.post("/ask", verifyToken, async (req, res) => {
