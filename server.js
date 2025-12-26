@@ -7,6 +7,7 @@ import verifyToken from "./auth/verifyToken.js";
 import profileRoutes from "./profile/profileRoutes.js";
 import feedbackRoutes from "./feedback/feedbackRoutes.js";
 import documentRoutes from "./legal_docs/documentRoutes.js";
+import adminRoutes from "./admin/adminRoutes.js";
 import path from "path";
 
 const app = express();
@@ -24,6 +25,8 @@ app.use("/feedback", feedbackRoutes);
 
 app.use("/legal_docs/upload", express.static(path.join(process.cwd(), "legal_docs", "upload")));
 app.use("/documents", documentRoutes);
+
+app.use("/admin", adminRoutes);
 
 // api endpoint for answer
 app.post("/ask", verifyToken, async (req, res) => {

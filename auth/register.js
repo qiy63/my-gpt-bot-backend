@@ -21,10 +21,10 @@ router.post("/register", (req, res) => {
         // hash pass
         const hashedPassword = bcrypt.hashSync(password, 10);
 
-        // insert user
-        const sql = "INSERT INTO users (name, email, password) VALUES (?, ?, ?)";
+        // insert user (default role: user)
+        const sql = "INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)";
 
-        db.query(sql, [name, email, hashedPassword], (err) => {
+        db.query(sql, [name, email, hashedPassword, "user"], (err) => {
 
             if (err) return res.status(500).json({error: "Database error"});
 

@@ -28,6 +28,7 @@ export default function verifyToken(req, res, next) {
 
                 id: decoded.id,
                 email: decoded.email,
+                role: decoded.role || "user",
 
             }
 

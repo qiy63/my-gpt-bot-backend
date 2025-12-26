@@ -29,21 +29,27 @@ router.post("/login", (req, res) => {
 
         }
 
+        const role = user.role || "user"; // default to user if column absent
+
         // generate token
         const token = jwt.sign(
-
-            {id: user.id, email: user.email},
+            { id: user.id, email: user.email, role },
             process.env.JWT_SECRET,
-            {expiresIn: "1h"}
-
+            { expiresIn: "1h" }
         );
 
-        res.json({
+        // log login event (best-effort)
+        const logSql = "INSERT INTO login_events (user_id) VALUES (?)";
+        db.query(logSql, [user.id], (logErr) => {
+            if (logErr) {
+                console.error("login_events insert error:", logErr);
+            }
+        });
 
+        res.json({
             message: "Login Successful",
             token,
-            user: {id: user.id, name: user.name, email: user.email}
-
+            user: { id: user.id, name: user.name, email: user.email, role }
         });
 
     });
