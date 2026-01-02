@@ -33,10 +33,10 @@ function chunkText(text, size=500){
 
 }
 
-// upload files in documents
+// upload files in legal_info
 async function uploadDocument() {
     
-    const folder = "./documents";
+    const folder = "./legal_info";
     const files = fs.readdirSync(folder);
 
     console.log(`Found ${files.length} documents.`);

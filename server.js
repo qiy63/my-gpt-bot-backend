@@ -7,6 +7,7 @@ import verifyToken from "./auth/verifyToken.js";
 import profileRoutes from "./profile/profileRoutes.js";
 import feedbackRoutes from "./feedback/feedbackRoutes.js";
 import documentRoutes from "./legal_docs/documentRoutes.js";
+import legalInfoRoutes from "./legal_info/legalInfoRoutes.js";
 import adminRoutes from "./admin/adminRoutes.js";
 import path from "path";
 
@@ -25,6 +26,9 @@ app.use("/feedback", feedbackRoutes);
 
 app.use("/legal_docs/upload", express.static(path.join(process.cwd(), "legal_docs", "upload")));
 app.use("/documents", documentRoutes);
+
+app.use("/legal_info", express.static(path.join(process.cwd(), "legal_info")));
+app.use("/legal-info", legalInfoRoutes);
 
 app.use("/admin", adminRoutes);
 
