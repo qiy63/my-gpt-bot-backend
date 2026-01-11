@@ -96,6 +96,82 @@ router.post("/", verifyToken, verifyAdmin, upload.single("file"), (req, res) => 
   );
 });
 
+// Admin update document (metadata + optional new file)
+router.put("/:id", verifyToken, verifyAdmin, upload.single("file"), (req, res) => {
+  const { title, category_id, short_description, prerequisites, required_docs, placeholder_url } = req.body;
+  const id = req.params.id;
+
+  const selectSql = "SELECT filename FROM documents WHERE id = ?";
+  db.query(selectSql, [id], (selErr, rows) => {
+    if (selErr) {
+      console.error("documents select error:", selErr);
+      return res.status(500).json({ error: "DB Error" });
+    }
+    if (!rows.length) return res.status(404).json({ error: "Not found" });
+
+    const oldFilename = rows[0].filename;
+    const newFilename = req.file ? req.file.filename : oldFilename;
+
+    const updateSql = `
+      UPDATE documents
+      SET category_id = ?, title = ?, short_description = ?, prerequisites = ?, required_docs = ?, filename = ?, placeholder_url = ?
+      WHERE id = ?
+    `;
+
+    db.query(
+      updateSql,
+      [
+        category_id,
+        title,
+        short_description || null,
+        prerequisites || null,
+        required_docs || null,
+        newFilename,
+        placeholder_url || null,
+        id,
+      ],
+      (updErr) => {
+        if (updErr) {
+          console.error("documents update error:", updErr);
+          return res.status(500).json({ error: "DB Error" });
+        }
+        if (req.file && oldFilename && oldFilename !== newFilename) {
+          const oldPath = path.join(uploadDir, oldFilename);
+          if (fs.existsSync(oldPath)) fs.unlink(oldPath, () => {});
+        }
+        res.json({ message: "Updated" });
+      }
+    );
+  });
+});
+
+// Admin delete document
+router.delete("/:id", verifyToken, verifyAdmin, (req, res) => {
+  const id = req.params.id;
+  const selectSql = "SELECT filename FROM documents WHERE id = ?";
+  db.query(selectSql, [id], (selErr, rows) => {
+    if (selErr) {
+      console.error("documents select error:", selErr);
+      return res.status(500).json({ error: "DB Error" });
+    }
+    if (!rows.length) return res.status(404).json({ error: "Not found" });
+    const filename = rows[0].filename;
+
+    const delSql = "DELETE FROM documents WHERE id = ?";
+    db.query(delSql, [id], (delErr) => {
+      if (delErr) {
+        console.error("documents delete error:", delErr);
+        return res.status(500).json({ error: "DB Error" });
+      }
+      if (filename) {
+        const filePath = path.join(uploadDir, filename);
+        if (fs.existsSync(filePath)) fs.unlink(filePath, () => {});
+      }
+      res.json({ message: "Deleted" });
+    });
+  });
+});
+
 // Download or redirect to placeholder
 router.get("/:id/download", verifyToken, (req, res) => {
   const sql = "SELECT filename, placeholder_url FROM documents WHERE id = ?";
