@@ -38,12 +38,24 @@ async function uploadDocument() {
     
     const folder = "./legal_info";
     const files = fs.readdirSync(folder);
+    const allowedExt = new Set([".txt", ".pdf", ".doc", ".docx"]);
 
     console.log(`Found ${files.length} documents.`);
 
     for (const file of files){
 
         const filePath = path.join(folder, file);
+        const stat = fs.statSync(filePath);
+        if (!stat.isFile()) {
+            console.log(`Skipping non-file entry: ${file}`);
+            continue;
+        }
+        const ext = path.extname(file).toLowerCase();
+        if (!allowedExt.has(ext)) {
+            console.log(`Skipping unsupported file type: ${file}`);
+            continue;
+        }
+
         const text = fs.readFileSync(filePath, "utf8");
 
         const chunks = chunkText(text);

@@ -1,0 +1,106 @@
+Lease Renewal & Rent Review Guide (Malaysia)
+1) Overview
+
+In Malaysia, there is no automatic legal right for a tenant to renew a lease at the end of its term (whether tenancy or lease). Any right to renew must be expressly stated in the current lease agreement as an option to renew or an extension clause. Otherwise, a new agreement must be negotiated between the parties.
+
+A. Lease Renewal (Option to Renew)
+What It Is
+
+A lease renewal is when a tenant and landlord agree to continue the lease for a further fixed period once the existing lease expires. This can be:
+
+An extension under an option to renew clause in the existing contract, or
+
+A new lease if no renewal clause exists.
+
+Common Renewal Clauses
+
+A properly drafted lease should include:
+
+Renewal Option Period
+
+When the tenant must notify the landlord of intention to renew (e.g., at least 60–90 days before expiry).
+
+Length of Renewal
+
+For example: “Renewal for 2 years upon mutual written agreement.”
+
+Conditions for Renewal
+
+Whether rents will be subject to review or fixed from the outset.
+
+Any mechanism for determining rent reviewed on renewal (e.g., tied to CPI or market appraisal).
+
+Steps to Renew a Lease
+
+Check the current lease — see if an option to renew exists and its conditions.
+
+Notify in Writing — tenant must give written notice within the specified period.
+
+Agree on Terms — parties agree on new rent and any updated terms.
+
+Sign Renewal or New Agreement
+
+If exercising an existing option clause → typically an addendum.
+
+If negotiating fresh terms → a new lease agreement.
+
+Stamp Duty & Registration
+
+Renewed or new lease documents are stamped with LHDN and, where required, registered under the National Land Code.
+
+B. Rent Review
+What Is a Rent Review
+
+A rent review is the process of adjusting the rent payable, typically at renewal or at set intervals during the lease.
+
+Why Do Rent Reviews Matter
+
+Aligns rental payments with market rates or cost changes.
+
+Prevents tenants paying outdated or unfair rents.
+
+Offers landlords income protection against inflation or increased costs.
+
+Typical Rent Review Methods
+
+Fixed Percentage Increase
+
+Example: “Rent shall increase by 5% per renewal term.”
+
+Market Appraisal Basis
+
+Parties appoint a valuer to determine current market rent.
+
+The reviewed rent may be accepted or negotiated further.
+
+Consumer Price Index (CPI) Adjustment
+
+Rent may be linked to inflation using CPI as a benchmark.
+
+Notice of Rent Increase
+
+Under Malaysian practice, landlords normally must give sufficient advance written notice of rent increases (often min. 30 days), stating the current rent, proposed new rent, and effective date.
+
+C. Practical Clauses (Templates)
+1) Renewal Option Clause (Example)
+
+Renewal Option:
+The Tenant may exercise an option to renew this Lease for a further term of 2 years by giving written notice to the Landlord not less than 60 days before the Lease expiry. The rent payable during the renewed term shall be subject to review in accordance with Clause [Rent Review].
+
+2) Rent Review Clause (Example)
+
+Rent Review:
+The Parties agree that upon renewal, the annual rent shall be adjusted to reflect the current market rent, determined by an independent registered valuer appointed jointly by both Parties. Each Party shall bear its own valuation costs unless otherwise agreed.
+
+D. Risks & Considerations
+1) No Automatic Renewal
+
+If an existing lease does not contain a renewal option, the tenant does not automatically get extended tenure — both parties must negotiate fresh terms.
+
+2) Land Ownership Changes
+
+Tenants should conduct a land search before renewal to verify that the landlord still owns the property and can legally renew the lease.
+
+3) Stamp Duty
+
+Lease renewal or new lease agreements must often be stamped with LHDN to be admissible in court, and late stamping attracts penalties.

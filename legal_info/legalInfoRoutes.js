@@ -4,6 +4,7 @@ import path from "path";
 import fs from "fs";
 import verifyToken from "../auth/verifyToken.js";
 import { db } from "../auth/db.js";
+import { ingestFile, removeVectors } from "./ingestHelper.js";
 
 const router = express.Router();
 
@@ -81,7 +82,7 @@ router.post("/", verifyToken, verifyAdmin, upload.single("file"), (req, res) => 
         console.error("legal_info insert error:", err);
         return res.status(500).json({ error: "DB Error" });
       }
-      res.json({
+      const payload = {
         id: result.insertId,
         title,
         category,
@@ -91,7 +92,15 @@ router.post("/", verifyToken, verifyAdmin, upload.single("file"), (req, res) => 
         filename: req.file.filename,
         mime_type: req.file.mimetype,
         file_size: req.file.size,
-      });
+      };
+
+      const sourceId = `legalinfo-${result.insertId}`;
+      const filePath = path.join(uploadDir, req.file.filename);
+      ingestFile(filePath, sourceId).catch((e) =>
+        console.warn("legal_info ingest error:", e?.message || e)
+      );
+
+      res.json(payload);
     }
   );
 });
@@ -131,7 +140,7 @@ router.put("/:id", verifyToken, verifyAdmin, upload.single("file"), (req, res) =
         req.file ? req.file.size : null,
         id,
       ],
-      (updErr) => {
+      async (updErr) => {
         if (updErr) {
           console.error("legal_info update error:", updErr);
           return res.status(500).json({ error: "DB Error" });
@@ -139,6 +148,18 @@ router.put("/:id", verifyToken, verifyAdmin, upload.single("file"), (req, res) =
         if (req.file && oldFilename && oldFilename !== newFilename) {
           const oldPath = path.join(uploadDir, oldFilename);
           if (fs.existsSync(oldPath)) fs.unlink(oldPath, () => {});
+        }
+
+        if (req.file) {
+          const sourceId = `legalinfo-${id}`;
+          const filePath = path.join(uploadDir, newFilename);
+          removeVectors(sourceId)
+            .catch((e) => console.warn("legal_info remove vectors error:", e?.message || e))
+            .finally(() =>
+              ingestFile(filePath, sourceId).catch((e) =>
+                console.warn("legal_info ingest error:", e?.message || e)
+              )
+            );
         }
         res.json({ message: "Updated" });
       }
@@ -168,6 +189,10 @@ router.delete("/:id", verifyToken, verifyAdmin, (req, res) => {
         const filePath = path.join(uploadDir, filename);
         if (fs.existsSync(filePath)) fs.unlink(filePath, () => {});
       }
+      const sourceId = `legalinfo-${id}`;
+      removeVectors(sourceId).catch((e) =>
+        console.warn("legal_info remove vectors error:", e?.message || e)
+      );
       res.json({ message: "Deleted" });
     });
   });
@@ -185,6 +210,31 @@ router.get("/:id/download", verifyToken, verifyAdmin, (req, res) => {
     const filePath = path.join(uploadDir, rows[0].filename);
     if (!fs.existsSync(filePath)) return res.status(404).json({ error: "File missing" });
     return res.download(filePath);
+  });
+});
+
+// Rebuild embeddings for all legal_info files (txt only ingested)
+router.post("/reindex", verifyToken, verifyAdmin, async (_req, res) => {
+  const sql = "SELECT id, filename FROM legal_info_files";
+  db.query(sql, async (err, rows) => {
+    if (err) {
+      console.error("legal_info reindex query error:", err);
+      return res.status(500).json({ error: "DB Error" });
+    }
+    const results = [];
+    for (const row of rows) {
+      const sourceId = `legalinfo-${row.id}`;
+      const filePath = path.join(uploadDir, row.filename);
+      try {
+        await removeVectors(sourceId);
+        await ingestFile(filePath, sourceId);
+        results.push({ id: row.id, status: "ok" });
+      } catch (e) {
+        console.warn("legal_info reindex item error:", e?.message || e);
+        results.push({ id: row.id, status: "error", message: e?.message || String(e) });
+      }
+    }
+    res.json({ items: results });
   });
 });
 
