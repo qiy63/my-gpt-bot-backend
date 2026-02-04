@@ -9,6 +9,7 @@ import feedbackRoutes from "./feedback/feedbackRoutes.js";
 import documentRoutes from "./legal_docs/documentRoutes.js";
 import legalInfoRoutes from "./legal_info/legalInfoRoutes.js";
 import adminRoutes from "./admin/adminRoutes.js";
+import chatRoutes from "./chat/chatRoutes.js";
 import path from "path";
 
 const app = express();
@@ -29,6 +30,8 @@ app.use("/documents", documentRoutes);
 
 app.use("/legal_info", express.static(path.join(process.cwd(), "legal_info")));
 app.use("/legal-info", legalInfoRoutes);
+
+app.use("/chat", chatRoutes);
 
 app.use("/admin", adminRoutes);
 
