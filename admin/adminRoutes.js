@@ -58,7 +58,7 @@ router.get("/metrics/logins", verifyToken, verifyAdmin, (req, res) => {
 // All feedback (admin)
 router.get("/feedback", verifyToken, verifyAdmin, (_req, res) => {
   const sql = `
-    SELECT f.id, f.user_id, f.message, f.rating, f.screenshot, f.created_at, u.name AS user_name, u.email
+    SELECT f.id, f.user_id, f.message, f.rating, f.screenshot_url, f.created_at, u.name AS user_name, u.email
     FROM feedback f
     LEFT JOIN users u ON u.id = f.user_id
     ORDER BY f.created_at DESC
@@ -74,9 +74,7 @@ router.get("/feedback", verifyToken, verifyAdmin, (_req, res) => {
       user_id: r.user_id,
       message: r.message,
       rating: r.rating,
-      screenshot_url: r.screenshot
-        ? `http://localhost:4000/feedback/upload/${r.screenshot}`
-        : null,
+      screenshot_url: r.screenshot_url || null,
       created_at: r.created_at,
       user_name: r.user_name || "Unknown",
       email: r.email || "",

@@ -1,14 +1,10 @@
 import OpenAI from "openai";
 import { Pinecone } from "@pinecone-database/pinecone";
-import fs from "fs";
-import path from "path";
 import "dotenv/config";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const pinecone = new Pinecone({ apiKey: process.env.PINECONE_API_KEY });
 const index = pinecone.Index(process.env.INDEX_NAME);
-
-const allowedExt = new Set([".txt", ".pdf", ".doc", ".docx"]);
 
 function chunkText(text, size = 500) {
   const chunks = [];
@@ -18,24 +14,7 @@ function chunkText(text, size = 500) {
   return chunks;
 }
 
-// Basic text extractor: currently only handles .txt. Other formats are skipped.
-function extractText(filePath) {
-  const ext = path.extname(filePath).toLowerCase();
-  if (ext !== ".txt") {
-    console.warn(`Ingest skip: unsupported extraction for ${ext}. Only .txt ingested.`);
-    return null;
-  }
-  return fs.readFileSync(filePath, "utf8");
-}
-
-export async function ingestFile(filePath, sourceId) {
-  const ext = path.extname(filePath).toLowerCase();
-  if (!allowedExt.has(ext)) {
-    console.warn(`Ingest skip: ${filePath} has unsupported extension.`);
-    return;
-  }
-
-  const text = extractText(filePath);
+export async function ingestText(text, sourceId, filename = "content.txt") {
   if (!text) return;
 
   const chunks = chunkText(text);
@@ -53,7 +32,7 @@ export async function ingestFile(filePath, sourceId) {
         metadata: {
           text: chunk,
           source: sourceId,
-          filename: path.basename(filePath),
+          filename,
         },
       },
     ]);

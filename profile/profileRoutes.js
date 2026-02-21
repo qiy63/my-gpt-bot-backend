@@ -2,29 +2,11 @@ import express from "express";
 import {db} from "../auth/db.js";
 import verifyToken from "../auth/verifyToken.js";
 import multer from "multer";
-import path from "path";
-import fs from "fs";
+import { uploadBuffer } from "../utils/cloudinary.js";
 
 const router = express.Router();
 
-// multer for image upload
-const uploadDir = path.join(process.cwd(), "profile", "upload");
-
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, {recursive: true});
-
-const storage = multer.diskStorage({
-
-    destination: (req, file, cb) => cb(null, uploadDir),
-    filename: (req, file, cb) => {
-
-        const ext = path.extname(file.originalname);
-        cb(null, `user_${req.user.id}_${Date.now()}${ext}`);
-
-    }
-
-});
-
-const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024}}); // => 5MB
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024}});
 
 // GET prof
 router.get("/profile", verifyToken, (req, res) => {
@@ -45,11 +27,8 @@ router.get("/profile", verifyToken, (req, res) => {
 
         const profile = results[0] || null;
 
-        if (profile?.profile_picture){
-
-            profile.profile_picture_url = 
-                `http://localhost:4000/profile/upload/${profile.profile_picture}`;
-
+        if (profile?.profile_picture_url){
+            profile.profile_picture_url = profile.profile_picture_url;
         }
 
         res.json({profile});
@@ -74,18 +53,25 @@ router.put("/profile", verifyToken, upload.single("picture"), (req, res) => {
 
     } = req.body;
 
-    const newProfilePic = req.file ? req.file.filename : null;
+    const uploadPicture = async () => {
+        if (!req.file) return null;
+        const result = await uploadBuffer(req.file.buffer, {
+            folder: "profiles",
+            resource_type: "image",
+        });
+        return result.secure_url;
+    };
 
     // if profile exist
-    const checkSql = "SELECT profile_picture FROM user_profiles WHERE user_id = ?";
+    const checkSql = "SELECT profile_picture_url FROM user_profiles WHERE user_id = ?";
     
-    db.query(checkSql, [userId], (err, rows) => {
+    db.query(checkSql, [userId], async (err, rows) => {
 
         if (err) return res.status(500).json({ error: "DB Error "});
 
-        const existingPicture = rows[0]?.profile_picture || null;
-
-        const finalPicture = newProfilePic || existingPicture;
+        const existingPicture = rows[0]?.profile_picture_url || null;
+        const newProfilePicUrl = await uploadPicture();
+        const finalPicture = newProfilePicUrl || existingPicture;
 
         if (rows.length > 0){
 
@@ -94,7 +80,7 @@ router.put("/profile", verifyToken, upload.single("picture"), (req, res) => {
                 UPDATE user_profiles SET
                     full_name = ?, phone = ?, gender = ?, birthdate = ?, 
                     address = ?, occupation = ?, national_id = ?, 
-                    profile_picture = ?
+                    profile_picture_url = ?
                 WHERE user_id = ?
             `;
 
@@ -108,9 +94,7 @@ router.put("/profile", verifyToken, upload.single("picture"), (req, res) => {
                 }
                 res.json({
                         message: "Profile Updated",
-                        profile_picture_url: finalPicture
-                            ? `http://localhost:4000/profile/upload/${finalPicture}`
-                            : null
+                        profile_picture_url: finalPicture || null
                     });
 
             });
@@ -120,7 +104,7 @@ router.put("/profile", verifyToken, upload.single("picture"), (req, res) => {
             //insert
             const insertSql = `
                 INSERT INTO user_profiles 
-                    (user_id, full_name, phone, gender, birthdate, address, occupation, national_id, profile_picture)
+                    (user_id, full_name, phone, gender, birthdate, address, occupation, national_id, profile_picture_url)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             `;
 
@@ -135,9 +119,7 @@ router.put("/profile", verifyToken, upload.single("picture"), (req, res) => {
 
                 res.json({
                         message: "Profile Created",
-                        profile_picture_url: finalPicture
-                            ? `http://localhost:4000/profile/upload/${finalPicture}`
-                            : null
+                        profile_picture_url: finalPicture || null
                     });
                 
             });

@@ -1,15 +1,11 @@
 import express from "express";
 import multer from "multer";
-import path from "path";
-import fs from "fs";
 import verifyToken from "../auth/verifyToken.js";
 import { db } from "../auth/db.js";
-import { ingestFile, removeVectors } from "./ingestHelper.js";
+import { ingestText, removeVectors } from "./ingestHelper.js";
+import { uploadBuffer } from "../utils/cloudinary.js";
 
 const router = express.Router();
-
-const uploadDir = path.join(process.cwd(), "legal_info");
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
 const allowedTypes = [
   "application/pdf",
@@ -18,13 +14,8 @@ const allowedTypes = [
   "text/plain",
 ];
 
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, uploadDir),
-  filename: (_req, file, cb) => cb(null, `legalinfo_${Date.now()}${path.extname(file.originalname)}`),
-});
-
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 15 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     if (allowedTypes.includes(file.mimetype)) cb(null, true);
@@ -40,7 +31,7 @@ const verifyAdmin = (req, res, next) => {
 // List all legal info entries
 router.get("/", verifyToken, verifyAdmin, (_req, res) => {
   const sql = `
-    SELECT id, title, category, short_description, tags, status, filename, mime_type, file_size, updated_at, created_at
+    SELECT id, title, category, short_description, tags, status, file_url, mime_type, file_size, updated_at, created_at
     FROM legal_info_files
     ORDER BY updated_at DESC
   `;
@@ -59,50 +50,64 @@ router.post("/", verifyToken, verifyAdmin, upload.single("file"), (req, res) => 
   if (!title || !category) return res.status(400).json({ error: "title and category are required" });
   if (!req.file) return res.status(400).json({ error: "file is required" });
 
-  const sql = `
-    INSERT INTO legal_info_files
-      (title, category, short_description, tags, status, filename, mime_type, file_size, uploaded_by)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `;
-  db.query(
-    sql,
-    [
-      title,
-      category,
-      short_description || null,
-      tags || null,
-      status || "active",
-      req.file.filename,
-      req.file.mimetype,
-      req.file.size,
-      req.user?.id || null,
-    ],
-    (err, result) => {
-      if (err) {
-        console.error("legal_info insert error:", err);
-        return res.status(500).json({ error: "DB Error" });
-      }
-      const payload = {
-        id: result.insertId,
-        title,
-        category,
-        short_description: short_description || null,
-        tags: tags || null,
-        status: status || "active",
-        filename: req.file.filename,
-        mime_type: req.file.mimetype,
-        file_size: req.file.size,
-      };
+  const contentText =
+    req.file.mimetype === "text/plain" ? req.file.buffer.toString("utf8") : null;
 
-      const sourceId = `legalinfo-${result.insertId}`;
-      const filePath = path.join(uploadDir, req.file.filename);
-      ingestFile(filePath, sourceId).catch((e) =>
-        console.warn("legal_info ingest error:", e?.message || e)
+  uploadBuffer(req.file.buffer, {
+    folder: "legal_info",
+    resource_type: "raw",
+  })
+    .then((result) => {
+      const sql = `
+        INSERT INTO legal_info_files
+          (title, category, short_description, tags, status, file_url, mime_type, file_size, uploaded_by, content_text)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `;
+      db.query(
+        sql,
+        [
+          title,
+          category,
+          short_description || null,
+          tags || null,
+          status || "active",
+          result.secure_url,
+          req.file.mimetype,
+          req.file.size,
+          req.user?.id || null,
+          contentText,
+        ],
+        (err, dbResult) => {
+          if (err) {
+            console.error("legal_info insert error:", err);
+            return res.status(500).json({ error: "DB Error" });
+          }
+          const payload = {
+            id: dbResult.insertId,
+            title,
+            category,
+            short_description: short_description || null,
+            tags: tags || null,
+            status: status || "active",
+            file_url: result.secure_url,
+            mime_type: req.file.mimetype,
+            file_size: req.file.size,
+          };
+
+          if (contentText) {
+            const sourceId = `legalinfo-${dbResult.insertId}`;
+            ingestText(contentText, sourceId).catch((e) =>
+              console.warn("legal_info ingest error:", e?.message || e)
+            );
+          }
+          res.json(payload);
+        }
       );
-
-      res.json(payload);
-    }
-  );
+    })
+    .catch((e) => {
+      console.error("legal_info upload error:", e);
+      res.status(500).json({ error: "Upload failed" });
+    });
 });
 
 // Update entry (metadata + optional new file)
@@ -110,7 +115,7 @@ router.put("/:id", verifyToken, verifyAdmin, upload.single("file"), (req, res) =
   const { title, category, short_description, tags, status } = req.body;
   const id = req.params.id;
 
-  const selectSql = "SELECT filename FROM legal_info_files WHERE id = ?";
+  const selectSql = "SELECT file_url, content_text FROM legal_info_files WHERE id = ?";
   db.query(selectSql, [id], (selErr, rows) => {
     if (selErr) {
       console.error("legal_info select error:", selErr);
@@ -118,76 +123,85 @@ router.put("/:id", verifyToken, verifyAdmin, upload.single("file"), (req, res) =
     }
     if (!rows.length) return res.status(404).json({ error: "Not found" });
 
-    const oldFilename = rows[0].filename;
-    const newFilename = req.file ? req.file.filename : oldFilename;
+    const oldUrl = rows[0].file_url || null;
+    const existingContent = rows[0].content_text || null;
 
-    const updateSql = `
-      UPDATE legal_info_files
-      SET title = ?, category = ?, short_description = ?, tags = ?, status = ?, filename = ?, mime_type = ?, file_size = ?, updated_at = NOW()
-      WHERE id = ?
-    `;
+    const doUpdate = (fileUrl, contentText, mimeType, fileSize) => {
+      const updateSql = `
+        UPDATE legal_info_files
+        SET title = ?, category = ?, short_description = ?, tags = ?, status = ?, file_url = ?, mime_type = ?, file_size = ?, content_text = ?, updated_at = NOW()
+        WHERE id = ?
+      `;
 
-    db.query(
-      updateSql,
-      [
-        title,
-        category,
-        short_description || null,
-        tags || null,
-        status || "active",
-        newFilename,
-        req.file ? req.file.mimetype : null,
-        req.file ? req.file.size : null,
-        id,
-      ],
-      async (updErr) => {
-        if (updErr) {
-          console.error("legal_info update error:", updErr);
-          return res.status(500).json({ error: "DB Error" });
-        }
-        if (req.file && oldFilename && oldFilename !== newFilename) {
-          const oldPath = path.join(uploadDir, oldFilename);
-          if (fs.existsSync(oldPath)) fs.unlink(oldPath, () => {});
-        }
+      db.query(
+        updateSql,
+        [
+          title,
+          category,
+          short_description || null,
+          tags || null,
+          status || "active",
+          fileUrl,
+          mimeType,
+          fileSize,
+          contentText,
+          id,
+        ],
+        async (updErr) => {
+          if (updErr) {
+            console.error("legal_info update error:", updErr);
+            return res.status(500).json({ error: "DB Error" });
+          }
 
-        if (req.file) {
-          const sourceId = `legalinfo-${id}`;
-          const filePath = path.join(uploadDir, newFilename);
-          removeVectors(sourceId)
-            .catch((e) => console.warn("legal_info remove vectors error:", e?.message || e))
-            .finally(() =>
-              ingestFile(filePath, sourceId).catch((e) =>
-                console.warn("legal_info ingest error:", e?.message || e)
-              )
-            );
+          if (contentText) {
+            const sourceId = `legalinfo-${id}`;
+            removeVectors(sourceId)
+              .catch((e) => console.warn("legal_info remove vectors error:", e?.message || e))
+              .finally(() =>
+                ingestText(contentText, sourceId).catch((e) =>
+                  console.warn("legal_info ingest error:", e?.message || e)
+                )
+              );
+          }
+          res.json({ message: "Updated" });
         }
-        res.json({ message: "Updated" });
-      }
-    );
+      );
+    };
+
+    if (!req.file) {
+      return doUpdate(oldUrl, existingContent, null, null);
+    }
+
+    const contentText =
+      req.file.mimetype === "text/plain" ? req.file.buffer.toString("utf8") : null;
+
+    uploadBuffer(req.file.buffer, {
+      folder: "legal_info",
+      resource_type: "raw",
+    })
+      .then((result) => doUpdate(result.secure_url, contentText, req.file.mimetype, req.file.size))
+      .catch((e) => {
+        console.error("legal_info upload error:", e);
+        res.status(500).json({ error: "Upload failed" });
+      });
   });
 });
 
 // Delete entry
 router.delete("/:id", verifyToken, verifyAdmin, (req, res) => {
   const id = req.params.id;
-  const selectSql = "SELECT filename FROM legal_info_files WHERE id = ?";
+  const selectSql = "SELECT file_url FROM legal_info_files WHERE id = ?";
   db.query(selectSql, [id], (selErr, rows) => {
     if (selErr) {
       console.error("legal_info select error:", selErr);
       return res.status(500).json({ error: "DB Error" });
     }
     if (!rows.length) return res.status(404).json({ error: "Not found" });
-    const filename = rows[0].filename;
-
     const delSql = "DELETE FROM legal_info_files WHERE id = ?";
     db.query(delSql, [id], (delErr) => {
       if (delErr) {
         console.error("legal_info delete error:", delErr);
         return res.status(500).json({ error: "DB Error" });
-      }
-      if (filename) {
-        const filePath = path.join(uploadDir, filename);
-        if (fs.existsSync(filePath)) fs.unlink(filePath, () => {});
       }
       const sourceId = `legalinfo-${id}`;
       removeVectors(sourceId).catch((e) =>
@@ -200,22 +214,21 @@ router.delete("/:id", verifyToken, verifyAdmin, (req, res) => {
 
 // Download file
 router.get("/:id/download", verifyToken, verifyAdmin, (req, res) => {
-  const sql = "SELECT filename FROM legal_info_files WHERE id = ?";
+  const sql = "SELECT file_url FROM legal_info_files WHERE id = ?";
   db.query(sql, [req.params.id], (err, rows) => {
     if (err) {
       console.error("legal_info download lookup error:", err);
       return res.status(500).json({ error: "DB Error" });
     }
     if (!rows.length) return res.status(404).json({ error: "Not found" });
-    const filePath = path.join(uploadDir, rows[0].filename);
-    if (!fs.existsSync(filePath)) return res.status(404).json({ error: "File missing" });
-    return res.download(filePath);
+    if (!rows[0].file_url) return res.status(404).json({ error: "File missing" });
+    return res.redirect(rows[0].file_url);
   });
 });
 
 // Rebuild embeddings for all legal_info files (txt only ingested)
 router.post("/reindex", verifyToken, verifyAdmin, async (_req, res) => {
-  const sql = "SELECT id, filename FROM legal_info_files";
+  const sql = "SELECT id, content_text FROM legal_info_files";
   db.query(sql, async (err, rows) => {
     if (err) {
       console.error("legal_info reindex query error:", err);
@@ -224,11 +237,14 @@ router.post("/reindex", verifyToken, verifyAdmin, async (_req, res) => {
     const results = [];
     for (const row of rows) {
       const sourceId = `legalinfo-${row.id}`;
-      const filePath = path.join(uploadDir, row.filename);
       try {
         await removeVectors(sourceId);
-        await ingestFile(filePath, sourceId);
-        results.push({ id: row.id, status: "ok" });
+        if (row.content_text) {
+          await ingestText(row.content_text, sourceId);
+          results.push({ id: row.id, status: "ok" });
+        } else {
+          results.push({ id: row.id, status: "skipped", message: "No text content" });
+        }
       } catch (e) {
         console.warn("legal_info reindex item error:", e?.message || e);
         results.push({ id: row.id, status: "error", message: e?.message || String(e) });

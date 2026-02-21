@@ -13,22 +13,23 @@ import chatRoutes from "./chat/chatRoutes.js";
 import path from "path";
 
 const app = express();
-app.use(cors());
+app.use(
+  cors({
+    origin: process.env.FRONTEND_URL || "*",
+    credentials: true,
+  })
+);
 app.use(express.json());
 
 app.use("/auth", registerRoute);
 app.use("/auth", loginRoute);
 
-app.use("/profile/upload", express.static(path.join(process.cwd(), "profile", "upload")));
 app.use("/api", profileRoutes);
 
-app.use("/feedback/upload", express.static(path.join(process.cwd(), "feedback", "upload")));
 app.use("/feedback", feedbackRoutes);
 
-app.use("/legal_docs/upload", express.static(path.join(process.cwd(), "legal_docs", "upload")));
 app.use("/documents", documentRoutes);
 
-app.use("/legal_info", express.static(path.join(process.cwd(), "legal_info")));
 app.use("/legal-info", legalInfoRoutes);
 
 app.use("/chat", chatRoutes);
