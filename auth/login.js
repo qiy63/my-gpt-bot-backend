@@ -8,9 +8,16 @@ const router = express.Router();
 router.post("/login", (req, res) => {
 
     const {email, password} = req.body;
+    if (!email || !password) {
+        return res.status(400).json({ error: "Email and password are required" });
+    }
     const sql = "SELECT * FROM users WHERE email = ?";
 
     db.query(sql, [email], (err, result) => {
+        if (err) {
+            console.error("login query error:", err);
+            return res.status(500).json({ error: "DB Error" });
+        }
 
         if (result.length === 0){
 
