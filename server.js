@@ -13,9 +13,17 @@ import chatRoutes from "./chat/chatRoutes.js";
 import path from "path";
 
 const app = express();
+const allowedOrigin = process.env.FRONTEND_URL || "";
+const vercelPreviewRegex = /^https:\/\/my-gpt-bot-frontend-v2-.*-qiy63s-projects\.vercel\.app$/;
+
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || "*",
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (allowedOrigin && origin === allowedOrigin) return callback(null, true);
+      if (vercelPreviewRegex.test(origin)) return callback(null, true);
+      return callback(new Error("Not allowed by CORS"));
+    },
     credentials: true,
   })
 );
