@@ -57,8 +57,8 @@ router.post("/", verifyToken, verifyAdmin, upload.single("file"), (req, res) => 
   const doInsert = (fileUrl) => {
     const sql = `
       INSERT INTO documents
-        (category_id, title, short_description, prerequisites, required_docs, file_url, placeholder_url, uploaded_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        (category_id, title, short_description, prerequisites, required_docs, file_url, placeholder_url, uploaded_by, original_filename, mime_type)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     db.query(
@@ -72,6 +72,8 @@ router.post("/", verifyToken, verifyAdmin, upload.single("file"), (req, res) => 
         fileUrl,
         placeholder_url || null,
         req.user?.id || null,
+        req.file ? req.file.originalname : null,
+        req.file ? req.file.mimetype : null,
       ],
       (err, result) => {
         if (err) {
@@ -108,7 +110,7 @@ router.put("/:id", verifyToken, verifyAdmin, upload.single("file"), (req, res) =
   const { title, category_id, short_description, prerequisites, required_docs, placeholder_url } = req.body;
   const id = req.params.id;
 
-  const selectSql = "SELECT file_url FROM documents WHERE id = ?";
+  const selectSql = "SELECT file_url, original_filename, mime_type FROM documents WHERE id = ?";
   db.query(selectSql, [id], (selErr, rows) => {
     if (selErr) {
       console.error("documents select error:", selErr);
@@ -117,11 +119,13 @@ router.put("/:id", verifyToken, verifyAdmin, upload.single("file"), (req, res) =
     if (!rows.length) return res.status(404).json({ error: "Not found" });
 
     const oldUrl = rows[0].file_url || null;
+    const oldOriginalName = rows[0].original_filename || null;
+    const oldMimeType = rows[0].mime_type || null;
 
-    const finishUpdate = (fileUrl) => {
+    const finishUpdate = (fileUrl, originalName, mimeType) => {
       const updateSql = `
         UPDATE documents
-        SET category_id = ?, title = ?, short_description = ?, prerequisites = ?, required_docs = ?, file_url = ?, placeholder_url = ?
+        SET category_id = ?, title = ?, short_description = ?, prerequisites = ?, required_docs = ?, file_url = ?, placeholder_url = ?, original_filename = ?, mime_type = ?
         WHERE id = ?
       `;
 
@@ -135,6 +139,8 @@ router.put("/:id", verifyToken, verifyAdmin, upload.single("file"), (req, res) =
           required_docs || null,
           fileUrl,
           placeholder_url || null,
+          originalName,
+          mimeType,
           id,
         ],
         (updErr) => {
@@ -147,13 +153,13 @@ router.put("/:id", verifyToken, verifyAdmin, upload.single("file"), (req, res) =
       );
     };
 
-    if (!req.file) return finishUpdate(oldUrl);
+    if (!req.file) return finishUpdate(oldUrl, oldOriginalName, oldMimeType);
 
     uploadBuffer(req.file.buffer, {
       folder: "guided_documents",
       resource_type: "raw",
     })
-      .then((result) => finishUpdate(result.secure_url))
+      .then((result) => finishUpdate(result.secure_url, req.file.originalname, req.file.mimetype))
       .catch((e) => {
         console.error("documents upload error:", e);
         res.status(500).json({ error: "Upload failed" });
@@ -184,7 +190,7 @@ router.delete("/:id", verifyToken, verifyAdmin, (req, res) => {
 
 // Download or redirect to placeholder
 router.get("/:id/download", verifyToken, (req, res) => {
-  const sql = "SELECT title, file_url, placeholder_url FROM documents WHERE id = ?";
+  const sql = "SELECT title, file_url, placeholder_url, original_filename, mime_type FROM documents WHERE id = ?";
   db.query(sql, [req.params.id], async (err, rows) => {
     if (err) {
       console.error("documents download lookup error:", err);
@@ -198,16 +204,17 @@ router.get("/:id/download", verifyToken, (req, res) => {
         if (!response.ok) {
           return res.status(502).json({ error: "File fetch failed" });
         }
-        const contentType = response.headers.get("content-type") || "application/octet-stream";
-        const ext = contentType.includes("pdf")
+        const contentType =
+          doc.mime_type || response.headers.get("content-type") || "application/octet-stream";
+        const safeTitle = (doc.title || "document").replace(/[^\w\s-]/g, "").trim() || "document";
+        const fallbackExt = contentType.includes("pdf")
           ? "pdf"
           : contentType.includes("msword")
           ? "doc"
           : contentType.includes("officedocument")
           ? "docx"
           : "bin";
-        const safeTitle = (doc.title || "document").replace(/[^\w\s-]/g, "").trim() || "document";
-        const filename = `${safeTitle}.${ext}`;
+        const filename = doc.original_filename || `${safeTitle}.${fallbackExt}`;
         const buffer = Buffer.from(await response.arrayBuffer());
         res.setHeader("Content-Type", contentType);
         res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
