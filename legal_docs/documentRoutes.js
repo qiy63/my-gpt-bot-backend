@@ -184,15 +184,39 @@ router.delete("/:id", verifyToken, verifyAdmin, (req, res) => {
 
 // Download or redirect to placeholder
 router.get("/:id/download", verifyToken, (req, res) => {
-  const sql = "SELECT file_url, placeholder_url FROM documents WHERE id = ?";
-  db.query(sql, [req.params.id], (err, rows) => {
+  const sql = "SELECT title, file_url, placeholder_url FROM documents WHERE id = ?";
+  db.query(sql, [req.params.id], async (err, rows) => {
     if (err) {
       console.error("documents download lookup error:", err);
       return res.status(500).json({ error: "DB Error" });
     }
     if (!rows.length) return res.status(404).json({ error: "Not found" });
     const doc = rows[0];
-    if (doc.file_url) return res.redirect(doc.file_url);
+    if (doc.file_url) {
+      try {
+        const response = await fetch(doc.file_url);
+        if (!response.ok) {
+          return res.status(502).json({ error: "File fetch failed" });
+        }
+        const contentType = response.headers.get("content-type") || "application/octet-stream";
+        const ext = contentType.includes("pdf")
+          ? "pdf"
+          : contentType.includes("msword")
+          ? "doc"
+          : contentType.includes("officedocument")
+          ? "docx"
+          : "bin";
+        const safeTitle = (doc.title || "document").replace(/[^\w\s-]/g, "").trim() || "document";
+        const filename = `${safeTitle}.${ext}`;
+        const buffer = Buffer.from(await response.arrayBuffer());
+        res.setHeader("Content-Type", contentType);
+        res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+        return res.send(buffer);
+      } catch (e) {
+        console.error("documents download fetch error:", e);
+        return res.status(502).json({ error: "File fetch failed" });
+      }
+    }
     if (doc.placeholder_url) return res.redirect(doc.placeholder_url);
     return res.status(404).json({ error: "No file available" });
   });
